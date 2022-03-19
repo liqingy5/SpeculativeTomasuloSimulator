@@ -1,5 +1,3 @@
-%All the registers have the initial value of 0. 
-%memory content in the form of address, value. 
 0, 111 
 8, 14 
 16, 5 

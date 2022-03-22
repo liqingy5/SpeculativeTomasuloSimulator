@@ -5,11 +5,12 @@ NF=4 #number of fetch instructions pre cycle.
 NW=4 #number of instructions can be issued to reservation stations pre cycle.
 NR=16 #number of entries in the reorder buffer(ROB)
 NB=4  #number of entries in the Common Data Busses(CDB)
-FILE = "prog.dat"
-all: main
+INSFILE = "instr.dat"
+MEMFILE = "mem.dat"
+all: clean main run
 
 run: 
-	./main $(FILE) $(NF) $(NW) $(NR) $(NB)
+	./main $(INSFILE) $(MEMFILE) $(NF) $(NW) $(NR) $(NB)
 
 main: main.o simulator.o
 	$(CC) -o main main.o simulator.o

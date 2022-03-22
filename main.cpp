@@ -3,34 +3,48 @@
 #include <string>
 #include <vector>
 #include "simulator.h"
+
+#define DEBUG 1
 int NF = 4;
 int NW = 4;
 int NB = 4;
 int NR = 16;
-string inputfile = "";
+string insfile = "";
+string memfile = "";
 using namespace std;
 int main(int argc, char *argv[])
 {
-    if (argc == 2)
+    if (argc == 3)
     {
-        inputfile = argv[1];
+        insfile = argv[1];
+        memfile = argv[2];
     }
-    else if (argc == 6)
+    else if (argc == 7)
     {
-        inputfile = argv[1];
-        NF = stoi(argv[2]);
-        NW = stoi(argv[3]);
-        NB = stoi(argv[4]);
-        NR = stoi(argv[5]);
+        insfile = argv[1];
+        memfile = argv[2];
+        NF = stoi(argv[3]);
+        NW = stoi(argv[4]);
+        NB = stoi(argv[5]);
+        NR = stoi(argv[6]);
     }
     else
     {
-        printf("please check your number parameters, it should be follow as: ./main filename NF NW NB NR \n");
+        printf("please check your number parameters, it should be follow the pattern as: ./main filename NF NW NB NR \n");
         exit(1);
     }
-    printf("Input file name is %s, with NF: %d, NW: %d, NB: %d, NR: %d \n", inputfile.c_str(), NF, NW, NB, NR);
+    printf("Input instruction file name is %s, memory file name is %s, with NF: %d, NW: %d, NB: %d, NR: %d \n", insfile.c_str(), memfile.c_str(), NF, NW, NB, NR);
     Simulator *simulator = new Simulator();
-    simulator->read_instructions(inputfile.c_str());
+    simulator->set_parameter(NF, NW, NB, NR);
+    simulator->read_instructions(insfile.c_str());
+    simulator->read_memory(memfile.c_str());
+    simulator->sim_start();
 
+    if (DEBUG)
+    {
+        // simulator->print_ins_list();
+        // simulator->print_mem_list();
+        simulator->print_rename_list();
+    }
     return 0;
 }

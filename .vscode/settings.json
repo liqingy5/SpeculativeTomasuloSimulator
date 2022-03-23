@@ -4,6 +4,9 @@
         "iosfwd": "cpp",
         "iostream": "cpp",
         "unordered_map": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "ostream": "cpp",
+        "initializer_list": "cpp",
+        "iomanip": "cpp"
     }
 }

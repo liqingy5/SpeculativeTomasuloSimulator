@@ -35,7 +35,13 @@ enum Instrs
     FDIV,
     BNE
 };
-
+enum State
+{
+    Issued,
+    Execute,
+    WB,
+    Commit
+};
 struct Instruction
 {
     int address;
@@ -46,40 +52,87 @@ struct Instruction
     int imme;
 };
 
+struct Reservation_station_status
+{
+    bool busy = false;
+    Instrs Op;
+    string Vj = "";
+    string Vk = "";
+    int Qj = -1;
+    int Qk = -1;
+    string dest;
+    int a = -1;
+};
+
+struct ROB_status
+{
+    string name;
+    bool busy = false;
+    Instruction ins;
+    State state;
+    string dest;
+    float value = -1;
+};
+
 // class declaration.
 class Simulator
 {
 private:
     string filename = "";
-    deque<Instruction> instruction_list;
-    deque<Instruction> fetch_queue;
-    deque<Instruction> decode_queue;
-    unordered_map<string, int> mapping_table;
-    unordered_map<string, int> branch_address;
+    vector<string> unit = {"INT1", "INT2", "INT3", "INT4", "LOAD1", "LOAD2",
+                           "STORE1", "STORE2", "FADD1", "FADD2", "FADD3", "FMULT1", "FMULT2", "FMULT3", "FMULT4", "FDIV1", "FDIV2", "BU"};
+    vector<string> int_unit = {"INT1", "INT2", "INT3", "INT4"};
+    vector<string> load_unit = {"LOAD1", "LOAD2"};
+    vector<string> store_unit = {"STORE1", "STORE2"};
+    vector<string> fadd_unit = {"FADD1", "FADD2", "FADD3"};
+    vector<string> fmul_unit = {"FMULT1", "FMULT2", "FMULT3", "FMULT4"};
+    vector<string> fdiv_unit = {"FDIV1", "FDIV2"};
+    string bu_unit = "BU";
+
+    deque<Instruction> instruction_list;         // store instruction read from inputfile
+    deque<Instruction> fetch_queue;              // store fetched insrtuctions
+    deque<Instruction> decode_queue;             // store decoded instructions
+    unordered_map<string, string> mapping_table; // key is the register before rename, value is after renamed
+    unordered_map<string, int> branch_address;   // store the address of branch instruction
+    unordered_map<string, Reservation_station_status> reservation_stations;
     unordered_map<int, pair<int, int>> BTB;
-    deque<int> free_list;
-    unordered_map<int, int> memory_content;
+    vector<ROB_status> ROB;
+    unordered_map<string, int> register_status; // register result status
+    deque<string> free_list;                    // Free list for avaliable physical registers
+    unordered_map<int, int> memory_content;     // store memory values that read from inputfile
     float physical_mem[SIZE_MEM];
     int NF, NW, NB, NR;
     int PC = 0;
     int address = 0;
     int cycles = 0;
+    int current_ROB = 0; // is ROB full or not
+    bool busy = false;
 
 public:
     Simulator();  // constructor
     ~Simulator(); // destructor
 
-    int init_mem();   // Initialize memory;
-    void sim_start(); // start the simulator;
-    void set_parameter(int NF, int NW, int NB, int NR);
-    bool read_memory(const char *);       // read memory content from file
-    bool read_instructions(const char *); // read instruction from file
-    bool fetch();                         // Fetch instructions from instruction list;
-    bool decode();                        // Decode instructions from fetch queue
-    bool issue();                         // issue instructions from decode queue
-    bool register_rename(string &reg);
+    void initlize();                                    // start initialization
+    int init_mem();                                     // Initialize memory;
+    int init_reservationStation();                      // Initialize Reservation Sta;
+    int init_ROB();                                     // Initialize ROB
+    int init_register();                                // Initialize registers
+    void sim_start();                                   // start the simulator;
+    void set_parameter(int NF, int NW, int NR, int NB); // Set parameters
+    bool read_memory(const char *);                     // read memory content from file
+    bool read_instructions(const char *);               // read instruction from file
+    bool fetch();                                       // Fetch instructions from instruction list;
+    bool decode();                                      // Decode instructions from fetch queue
+    bool issue();                                       // issue instructions from decode queue to reservation stations
+    string register_rename(string reg, bool des);       // perform register rename at decode stage and add renamed instruction into the decode deque.
+
+    /*Debug purpose*/
     void print_ins_list();
     void print_mem_list();
     void print_rename_list();
+    void print_reservationStation();
+    void print_freelist();
+    void print_ROB();
+    void print_registerStatus();
 };
 #endif

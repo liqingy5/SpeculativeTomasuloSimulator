@@ -46,8 +46,8 @@ int main(int argc, char *argv[])
         // simulator->print_ins_list();
         //  simulator->print_mem_list();
         //  simulator->print_rename_list();
-        simulator->print_reservationStation();
-        simulator->print_ROB();
+        // simulator->print_reservationStation();
+        // simulator->print_ROB();
         // simulator->print_registerStatus();
     }
     return 0;

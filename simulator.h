@@ -12,15 +12,14 @@ using namespace std;
 #define SIZE_MEM 32 // define the size of memory
 #define NUM_FUS 5   // the number of function unit
 #define CYCS_IN 1   // the number of cycle to finish an integer instruction
-#define EMPTY -1    // for convinence ,define empty as -1
 #define ZERO 0.0    // for memory comparison
 
-#define INT_LATENCY = 1
-#define LD_ST_LATENCY = 1
-#define FADD_LATENCY = 3
-#define FMULT_LATENCY = 4
-#define FDIV_LATENCY = 8
-#define BU_LATENCY = 1
+#define INT_LATENCY 1
+#define LD_ST_LATENCY 1
+#define FADD_LATENCY 3
+#define FMULT_LATENCY 4
+#define FDIV_LATENCY 8
+#define BU_LATENCY 1
 
 /*Implement 9 instructions*/
 enum Instrs
@@ -39,6 +38,7 @@ enum State
 {
     Issued,
     Execute,
+    Memory,
     WB,
     Commit
 };
@@ -58,20 +58,22 @@ struct Reservation_station_status
     Instrs Op;
     string Vj = "";
     string Vk = "";
-    int Qj = -1;
-    int Qk = -1;
+    string Qj = "";
+    string Qk = "";
     string dest;
     int a = -1;
 };
 
 struct ROB_status
 {
+    string unit;
     string name;
     bool busy = false;
     Instruction ins;
-    State state;
+    State state = Issued;
     string dest;
-    float value = -1;
+    double value = __DBL_MIN__;
+    int cycles = -1;
 };
 
 // class declaration.
@@ -96,17 +98,19 @@ private:
     unordered_map<string, int> branch_address;   // store the address of branch instruction
     unordered_map<string, Reservation_station_status> reservation_stations;
     unordered_map<int, pair<int, int>> BTB;
-    vector<ROB_status> ROB;
-    unordered_map<string, int> register_status; // register result status
-    deque<string> free_list;                    // Free list for avaliable physical registers
-    unordered_map<int, int> memory_content;     // store memory values that read from inputfile
+    deque<ROB_status> ROB;
+    unordered_map<string, float> CDB;
+    unordered_map<string, float> register_status; // register result status
+    deque<string> free_list;                      // Free list for avaliable physical registers
+    unordered_map<int, int> memory_content;       // store memory values that read from inputfile
     float physical_mem[SIZE_MEM];
     int NF, NW, NB, NR;
     int PC = 0;
     int address = 0;
     int cycles = 0;
-    int current_ROB = 0; // is ROB full or not
-    bool busy = false;
+    int ROB_head = 0; // is ROB head
+    bool mem_busy = false;
+    int count_WB = 0;
 
 public:
     Simulator();  // constructor
@@ -124,15 +128,20 @@ public:
     bool fetch();                                       // Fetch instructions from instruction list;
     bool decode();                                      // Decode instructions from fetch queue
     bool issue();                                       // issue instructions from decode queue to reservation stations
-    string register_rename(string reg, bool des);       // perform register rename at decode stage and add renamed instruction into the decode deque.
+    bool execute();
+    double getValue(ROB_status rob);
+    string register_rename(string reg, bool des); // perform register rename at decode stage and add renamed instruction into the decode deque.
 
     /*Debug purpose*/
     void print_ins_list();
+    void print_fetch_list();
     void print_mem_list();
     void print_rename_list();
     void print_reservationStation();
     void print_freelist();
     void print_ROB();
     void print_registerStatus();
+    void print_CDB();
+    void display_data();
 };
 #endif

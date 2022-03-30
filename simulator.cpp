@@ -12,6 +12,7 @@ const char MAX_INS_LENGTH = 50;
 vector<string> ins_name = {"fld", "fsd", "add", "addi", "fadd", "fsub", "fmul", "fdiv", "bne"};
 vector<string> state_name = {"Issued",
                              "Execute",
+                             "Memory",
                              "WB",
                              "Commit"};
 Simulator::Simulator()
@@ -24,7 +25,7 @@ void Simulator::initlize()
 {
     init_mem();
     init_reservationStation();
-    init_ROB();
+    // init_ROB();
     init_register();
 }
 void Simulator::set_parameter(int _NF, int _NW, int _NR, int _NB)
@@ -38,12 +39,19 @@ void Simulator::set_parameter(int _NF, int _NW, int _NR, int _NB)
 void Simulator::sim_start()
 {
     int i = 0;
-    while (i < 30)
+    while (i <= 30)
     {
         i++;
+        cout << "iteration: " << i << endl;
         issue();
         decode();
         fetch();
+        execute();
+        display_data();
+        if (ROB.size() == 0 && fetch_queue.size() == 0 && decode_queue.size() == 0)
+        {
+            break;
+        }
     }
 }
 
@@ -68,24 +76,24 @@ int Simulator::init_reservationStation()
     return 0;
 }
 
-int Simulator::init_ROB()
-{
-    ROB_status rob;
-    for (int i = 0; i < NR; ++i)
-    {
-        string index = "ROB" + to_string(i + 1);
-        rob.name = index;
-        ROB.push_back(rob);
-    }
+// int Simulator::init_ROB()
+// {
+//     ROB_status rob;
+//     for (int i = 0; i < NR; ++i)
+//     {
+//         string index = "ROB" + to_string(i + 1);
+//         rob.name = index;
+//         ROB.push_back(rob);
+//     }
 
-    return 0;
-}
+//     return 0;
+// }
 
 int Simulator::init_register()
 {
     for (int i = 0; i < SIZE_MEM; ++i)
     {
-        register_status["P" + to_string(i)] = -1;
+        register_status["P" + to_string(i)] = __DBL_MIN__;
     }
 }
 
@@ -157,16 +165,9 @@ bool Simulator::read_instructions(const char *inputfile)
                 words.erase(words.begin(), words.begin() + 1);
             }
             op = words[0];
-            if (op == "fld" || op == "fsd")
+            if (op == "fld")
             {
-                if (op == "fld")
-                {
-                    opcode = FLD;
-                }
-                else
-                {
-                    opcode = FSD;
-                }
+                opcode = FLD;
                 rd = words[1]; // Destination or base register
                 rs = words[2]; // first source or data source
                 // extract offset
@@ -176,6 +177,22 @@ bool Simulator::read_instructions(const char *inputfile)
                     {
                         imme = stoi(rs.substr(0, i));
                         rs = rs.substr(i + 1, rs.size() - i - 2);
+                        break;
+                    }
+                }
+            }
+            else if (op == "fld")
+            {
+                opcode = FSD;
+                rs = words[1]; // Destination or base register
+                rt = words[2]; // first source or data source
+                // extract offset
+                for (size_t i = 0; i < rt.size(); ++i)
+                {
+                    if (rt[i] == '(')
+                    {
+                        imme = stoi(rt.substr(0, i));
+                        rt = rt.substr(i + 1, rt.size() - i - 2);
                         break;
                     }
                 }
@@ -330,7 +347,21 @@ bool Simulator::decode()
                 return false;
             }
             temp_ins.rs = temp;
-
+            break;
+        case FSD:
+            temp = register_rename(rs, false);
+            if (temp == "")
+            {
+                return false;
+            }
+            temp_ins.rs = temp;
+            temp = register_rename(rt, false);
+            if (temp == "")
+            {
+                return false;
+            }
+            temp_ins.rt = temp;
+            break;
         default:
             temp = register_rename(rd, true);
             if (temp == "")
@@ -367,7 +398,7 @@ bool Simulator::issue()
         string unit = "";
         if (decode_queue.empty())
             return false;
-        if (current_ROB == NR)
+        if (ROB.size() == NR)
             return false;
         temp = decode_queue.front();
         decode_queue.pop_front();
@@ -456,30 +487,24 @@ bool Simulator::issue()
         reservation_stations[unit].busy = true;
         reservation_stations[unit].Op = temp.Op;
 
-        for (int i = 0; i < NR; ++i)
-        {
-            ROB_status &rob = ROB[i];
-            if (rob.busy == false)
-            {
-                rob.ins = temp;
-                rob.state = Issued;
-                rob.dest = temp.rd;
-                rob.busy = true;
-                reservation_stations[unit].dest = rob.name;
-
-                break;
-            }
-        }
+        ROB_status rob;
+        rob.unit = unit;
+        rob.ins = temp;
+        rob.state = Issued;
+        rob.dest = temp.rd;
+        rob.busy = true;
+        rob.name = "ROB" + to_string(ROB_head + 1);
+        reservation_stations[unit].dest = rob.name;
 
         if (temp.rs != "")
         {
             reservation_stations[unit].Vj = temp.rs;
-            for (int i = NR - 1; i >= 0; i--)
+            for (int i = ROB.size() - 1; i >= 0; i--)
             {
                 ROB_status rob = ROB[i];
                 if (rob.dest == temp.rs && rob.state != Commit && rob.state != WB)
                 {
-                    reservation_stations[unit].Qj = i;
+                    reservation_stations[unit].Qj = rob.name;
                     break;
                 }
             }
@@ -487,12 +512,12 @@ bool Simulator::issue()
         if (temp.rt != "")
         {
             reservation_stations[unit].Vk = temp.rt;
-            for (int i = NR - 1; i >= 0; i--)
+            for (int i = ROB.size() - 1; i >= 0; i--)
             {
                 ROB_status rob = ROB[i];
-                if (rob.dest == temp.rt && rob.state != Commit && rob.state != WB)
+                if (rob.dest == temp.rs && rob.state != Commit && rob.state != WB)
                 {
-                    reservation_stations[unit].Qk = i;
+                    reservation_stations[unit].Qk = rob.name;
                     break;
                 }
             }
@@ -502,8 +527,245 @@ bool Simulator::issue()
         {
             reservation_stations[unit].a = temp.imme;
         }
+        ROB.push_back(rob);
+        ROB_head++;
+        if (ROB_head == NR)
+        {
+            ROB_head = 0;
+        }
     }
     return true;
+}
+
+bool Simulator::execute()
+{
+
+    for (auto i : ROB)
+    {
+        if (i.state == Commit)
+        {
+            continue;
+        }
+        if (i.state == WB)
+        {
+            i.state = Commit;
+            if (i.ins.Op == FSD || i.ins.Op == FLD)
+            {
+                mem_busy = false;
+                count_WB--;
+            }
+        }
+        else if (i.cycles == 0 || i.state == Memory)
+        {
+            if ((i.ins.Op == FSD || i.ins.Op == FLD) && i.cycles == 0)
+            {
+                if (!mem_busy)
+                {
+                    mem_busy = true;
+                    i.state = Execute;
+                    continue;
+                }
+                else
+                {
+                    continue;
+                }
+            }
+            if (count_WB != NB)
+            {
+                i.state = WB;
+                count_WB += 1;
+            }
+            else
+            {
+                continue;
+            }
+
+            if (i.value != __DBL_MIN__)
+            {
+
+                if (i.ins.Op == BNE)
+                {
+
+                    if (BTB[i.ins.address].second != i.value)
+                    {
+                        BTB[i.ins.address].second = i.value;
+
+                        // flush out the ROB
+                        PC = i.ins.address + 1;
+                        if (i.value == 1)
+                        {
+                            PC = BTB[i.ins.address].first;
+                        }
+                        fetch_queue.clear();
+                        decode_queue.clear();
+
+                        for (int ind = ROB.size() - 1; ind >= 0; ind--)
+                        {
+                            ROB_status f = ROB[ind];
+                            if (f.ins.address != i.ins.address)
+                            {
+                                ROB.pop_back();
+                                continue;
+                            }
+                            else
+                            {
+                                ROB_head = stoi(i.name.substr(3));
+                                if (ROB_head == NR)
+                                {
+                                    ROB_head = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    CDB[i.dest] = i.value;
+                }
+            }
+            for (auto &re : reservation_stations)
+            {
+                if (re.second.Qj == i.name)
+                {
+                    re.second.Vj = i.dest;
+                    re.second.Qj = "";
+                }
+                if (re.second.Qk == i.name)
+                {
+                    re.second.Vk = i.dest;
+                    re.second.Qk = "";
+                }
+            }
+        }
+        else if (i.state == Issued)
+        {
+            if (reservation_stations[i.unit].Qj == "" && reservation_stations[i.unit].Qk == "")
+            {
+                switch (i.ins.Op)
+                {
+                case ADD:
+                case ADDI:
+                    i.cycles = INT_LATENCY;
+                    break;
+                case FLD:
+                case FSD:
+                    i.cycles = LD_ST_LATENCY;
+                    break;
+                case FADD:
+                case FSUB:
+                    i.cycles = FADD_LATENCY;
+                    break;
+                case FMUL:
+                    i.cycles = FMULT_LATENCY;
+                    break;
+                case FDIV:
+                    i.cycles = FDIV_LATENCY;
+                    break;
+                case BNE:
+                    i.cycles = BU_LATENCY;
+                    break;
+                default:
+                    break;
+                }
+                i.cycles--;
+                i.value = getValue(i);
+            }
+        }
+        else
+        {
+            i.cycles -= 1;
+        }
+    }
+    if (ROB.size() > 0)
+    {
+        if (ROB.front().state == Commit)
+        {
+            ROB_status temp = ROB.front();
+            Reservation_station_status new_temp;
+            ROB.pop_front();
+            reservation_stations[temp.unit] = new_temp;
+            switch (temp.ins.Op)
+            {
+            case FSD:
+            {
+                double value = __DBL_MIN__;
+                if (CDB.count(temp.ins.rs))
+                {
+                    value = CDB[temp.ins.rs];
+                }
+                else
+                {
+                    value = register_status[temp.ins.rs];
+                }
+                memory_content[temp.value] = value;
+                break;
+            }
+            case BNE:
+            {
+                break;
+            }
+            default:
+            {
+                register_status[temp.dest] = temp.value;
+            }
+            break;
+            }
+        }
+    }
+    return true;
+}
+
+double Simulator::getValue(ROB_status rob)
+{
+    Reservation_station_status &rs = reservation_stations[rob.unit];
+    Instruction ins = rob.ins;
+    double Vj = register_status[ins.rs];
+    double Vk = __DBL_MIN__;
+    if (CDB.count(rs.Vj) > 0)
+    {
+        Vj = CDB[rs.Vj];
+    }
+    if (CDB.count(rs.Vk) > 0)
+    {
+        Vk = CDB[rs.Vk];
+    }
+
+    if (Vk == __DBL_MIN__ && ins.Op != ADDI && ins.Op != FLD && ins.Op != FSD)
+    {
+        if (ins.rt == "R0")
+        {
+            Vk = 0;
+        }
+        else
+        {
+            Vk = register_status[ins.rt];
+        }
+    }
+
+    switch (ins.Op)
+    {
+    case ADDI:
+        return Vj + ins.imme;
+    case ADD:
+    case FADD:
+        return Vj + Vk;
+    case FSUB:
+
+        return Vj - Vk;
+    case FMUL:
+
+        return Vj * Vk;
+    case FDIV:
+
+        return Vj * Vk;
+    case FSD:
+    case FLD:
+        return memory_content[Vj + ins.imme];
+    case BNE:
+        return Vj != Vk;
+    default:
+        return 0;
+    }
 }
 
 string Simulator::register_rename(string reg, bool des)
@@ -542,7 +804,9 @@ string Simulator::register_rename(string reg, bool des)
 }
 
 void Simulator::print_ins_list()
+
 {
+    cout << setw(30) << "Instruction list" << endl;
     for (auto i : instruction_list)
     {
         Instruction ins = i;
@@ -552,22 +816,40 @@ void Simulator::print_ins_list()
         //     cout << ins_name[ins.Op] << endl;
         // }
     }
+    cout << endl;
 }
 void Simulator::print_mem_list()
 {
+    cout << setw(30) << "Memory content" << endl;
+    cout << setw(8) << "memory" << setw(8)
+         << "value" << endl;
     for (auto i : memory_content)
     {
-        cout << i.first << "," << i.second << endl;
+        cout << i.first << "," << setw(8) << i.second << endl;
     }
+    cout << endl;
+}
+void Simulator::print_fetch_list()
+{
+    cout << setw(30) << "fetch content" << endl;
+    for (auto i : fetch_queue)
+    {
+        Instruction ins = i;
+
+        cout << ins_name[ins.Op] << " " << ins.rd << "," << ins.rs << "," << ins.rt << " " << ins.imme << endl;
+    }
+    cout << endl;
 }
 void Simulator::print_rename_list()
 {
+    cout << setw(30) << "decode content" << endl;
     for (auto i : decode_queue)
     {
         Instruction ins = i;
 
         cout << ins_name[ins.Op] << " " << ins.rd << "," << ins.rs << "," << ins.rt << " " << ins.imme << endl;
     }
+    cout << endl;
 }
 
 void Simulator::print_reservationStation()
@@ -606,13 +888,13 @@ void Simulator::print_reservationStation()
             {
                 vk = temp.Vk;
             }
-            if (temp.Qj != -1)
+            if (temp.Qj != "")
             {
-                qj = "ROB" + to_string(temp.Qj);
+                qj = temp.Qj;
             }
-            if (temp.Qk != -1)
+            if (temp.Qk != "")
             {
-                qk = "ROB" + to_string(temp.Qk);
+                qk = temp.Qk;
             }
             dest = temp.dest;
             if (temp.a != -1)
@@ -627,10 +909,12 @@ void Simulator::print_reservationStation()
 
 void Simulator::print_freelist()
 {
+    cout << setw(30) << "FreeList" << endl;
     for (auto f : free_list)
     {
         cout << f << endl;
     }
+    cout << endl;
 }
 
 void Simulator::print_ROB()
@@ -642,7 +926,8 @@ void Simulator::print_ROB()
          << "Instruction" << setw(8)
          << "State" << setw(8)
          << "Dest" << setw(8)
-         << "Value" << endl;
+         << "Value" << setw(8)
+         << "Unit" << endl;
     for (auto rob : ROB)
     {
         string name = rob.name;
@@ -651,25 +936,56 @@ void Simulator::print_ROB()
         string state = "";
         string dest = "";
         string value = "";
+        string unit = "";
         if (rob.busy == true)
         {
             busy = "True";
             instruction = ins_name[rob.ins.Op] + " " + rob.ins.rd + "," + rob.ins.rs + "," + rob.ins.rt + " " + to_string(rob.ins.imme);
             state = state_name[rob.state];
             dest = rob.dest;
+            unit = rob.unit;
             if (rob.value != -1)
             {
                 value = to_string(rob.value);
             }
         }
-        cout << setw(8) << rob.name << setw(8) << busy << setw(20) << instruction << setw(8) << state << setw(8) << dest << setw(8) << value << endl;
+        cout << setw(8) << rob.name << setw(8) << busy << setw(20) << instruction << setw(8) << state << setw(8) << dest << " " << setw(8) << value << setw(8) << unit << endl;
     }
+    cout << endl;
 }
 
 void Simulator::print_registerStatus()
 {
+    cout << setw(30) << "Register" << endl;
+    cout << setw(8) << "reg" << setw(8)
+         << "value" << endl;
     for (auto reg : register_status)
     {
-        cout << reg.first << endl;
+        cout << reg.first << "," << setw(8) << reg.second << endl;
     }
+    cout << endl;
+}
+
+void Simulator::print_CDB()
+{
+    cout << setw(30) << "CDB" << endl;
+    cout << setw(8) << "ROB" << setw(8)
+         << "value" << endl;
+    for (auto cdb : CDB)
+    {
+        cout << cdb.first << "," << setw(8) << cdb.second << endl;
+    }
+    cout << endl;
+}
+
+void Simulator::display_data()
+{
+    print_ins_list();
+    print_fetch_list();
+    print_rename_list();
+    print_freelist();
+    print_reservationStation();
+    print_ROB();
+    print_CDB();
+    print_registerStatus();
 }

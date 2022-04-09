@@ -73,7 +73,7 @@ struct ROB_status
     State state = Issued;
     string dest;
     double value = __DBL_MIN__;
-    int cycles = -1;
+    int cycles = 0;
 };
 
 // class declaration.

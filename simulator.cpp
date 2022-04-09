@@ -39,17 +39,19 @@ void Simulator::set_parameter(int _NF, int _NW, int _NR, int _NB)
 void Simulator::sim_start()
 {
     int i = 0;
-    while (i <= 30)
+    while (true)
     {
         i++;
         cout << "iteration: " << i << endl;
+        display_data();
+        execute();
         issue();
         decode();
         fetch();
-        execute();
-        display_data();
         if (ROB.size() == 0 && fetch_queue.size() == 0 && decode_queue.size() == 0)
         {
+            display_data();
+
             break;
         }
     }
@@ -60,7 +62,7 @@ int Simulator::init_mem()
     for (int i = 0; i < SIZE_MEM; ++i)
     {
         physical_mem[i] = 0;
-        free_list.push_back("p" + to_string(i));
+        free_list.push_back("P" + to_string(i));
     }
 
     return 0;
@@ -93,7 +95,7 @@ int Simulator::init_register()
 {
     for (int i = 0; i < SIZE_MEM; ++i)
     {
-        register_status["P" + to_string(i)] = __DBL_MIN__;
+        register_status["P" + to_string(i)] = 0;
     }
 }
 
@@ -181,7 +183,7 @@ bool Simulator::read_instructions(const char *inputfile)
                     }
                 }
             }
-            else if (op == "fld")
+            else if (op == "fsd")
             {
                 opcode = FSD;
                 rs = words[1]; // Destination or base register
@@ -536,11 +538,33 @@ bool Simulator::issue()
     }
     return true;
 }
-
+int latency(Instrs op)
+{
+    switch (op)
+    {
+    case ADD:
+    case ADDI:
+        return INT_LATENCY;
+    case FLD:
+    case FSD:
+        return LD_ST_LATENCY;
+    case FADD:
+    case FSUB:
+        return FADD_LATENCY;
+    case FMUL:
+        return FMULT_LATENCY;
+    case FDIV:
+        return FDIV_LATENCY;
+    case BNE:
+        return BU_LATENCY;
+    default:
+        return 0;
+    }
+}
 bool Simulator::execute()
 {
 
-    for (auto i : ROB)
+    for (auto &i : ROB)
     {
         if (i.state == Commit)
         {
@@ -555,15 +579,13 @@ bool Simulator::execute()
                 count_WB--;
             }
         }
-        else if (i.cycles == 0 || i.state == Memory)
+        else if (i.cycles == 0 && i.state == Execute)
         {
             if ((i.ins.Op == FSD || i.ins.Op == FLD) && i.cycles == 0)
             {
                 if (!mem_busy)
                 {
                     mem_busy = true;
-                    i.state = Execute;
-                    continue;
                 }
                 else
                 {
@@ -641,39 +663,46 @@ bool Simulator::execute()
         {
             if (reservation_stations[i.unit].Qj == "" && reservation_stations[i.unit].Qk == "")
             {
-                switch (i.ins.Op)
-                {
-                case ADD:
-                case ADDI:
-                    i.cycles = INT_LATENCY;
-                    break;
-                case FLD:
-                case FSD:
-                    i.cycles = LD_ST_LATENCY;
-                    break;
-                case FADD:
-                case FSUB:
-                    i.cycles = FADD_LATENCY;
-                    break;
-                case FMUL:
-                    i.cycles = FMULT_LATENCY;
-                    break;
-                case FDIV:
-                    i.cycles = FDIV_LATENCY;
-                    break;
-                case BNE:
-                    i.cycles = BU_LATENCY;
-                    break;
-                default:
-                    break;
-                }
+
+                i.cycles = latency(i.ins.Op);
                 i.cycles--;
                 i.value = getValue(i);
+                i.state = Execute;
+            }
+            else
+            {
+                if (reservation_stations[i.unit].Qj != "")
+                {
+                    string rob_name = reservation_stations[i.unit].Qj;
+                    for (auto r : ROB)
+                    {
+                        if (rob_name == r.name && r.state == WB)
+                        {
+                            reservation_stations[i.unit].Qj = "";
+                            break;
+                        }
+                    }
+                }
+                if (reservation_stations[i.unit].Qk != "")
+                {
+                    string rob_name = reservation_stations[i.unit].Qk;
+                    for (auto r : ROB)
+                    {
+                        if (rob_name == r.name && r.state == WB)
+                        {
+                            reservation_stations[i.unit].Qk = "";
+                            break;
+                        }
+                    }
+                }
             }
         }
         else
         {
-            i.cycles -= 1;
+            if (i.cycles > 0)
+            {
+                i.cycles -= 1;
+            }
         }
     }
     if (ROB.size() > 0)
@@ -692,8 +721,9 @@ bool Simulator::execute()
                 if (CDB.count(temp.ins.rs))
                 {
                     value = CDB[temp.ins.rs];
+                    CDB.erase(temp.ins.rs);
                 }
-                else
+                else if (register_status.count(temp.ins.rs))
                 {
                     value = register_status[temp.ins.rs];
                 }
@@ -719,7 +749,7 @@ double Simulator::getValue(ROB_status rob)
 {
     Reservation_station_status &rs = reservation_stations[rob.unit];
     Instruction ins = rob.ins;
-    double Vj = register_status[ins.rs];
+    double Vj = __DBL_MIN__;
     double Vk = __DBL_MIN__;
     if (CDB.count(rs.Vj) > 0)
     {
@@ -730,9 +760,9 @@ double Simulator::getValue(ROB_status rob)
         Vk = CDB[rs.Vk];
     }
 
-    if (Vk == __DBL_MIN__ && ins.Op != ADDI && ins.Op != FLD && ins.Op != FSD)
+    if (Vk == __DBL_MIN__ && ins.Op != ADDI && ins.Op != FLD && ins.Op != FSD && ins.Op != BNE)
     {
-        if (ins.rt == "R0")
+        if (ins.rt == "$0")
         {
             Vk = 0;
         }
@@ -787,9 +817,9 @@ string Simulator::register_rename(string reg, bool des)
     }
     if (free_list.empty())
         return "";
-    if (reg == "R0")
+    if (reg == "$0")
     {
-        return "R0";
+        return "$0";
     }
     else
     {

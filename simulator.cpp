@@ -485,7 +485,10 @@ bool Simulator::issue()
         }
 
         if (unit == "")
+        {
+            decode_queue.push_back(temp);
             return false;
+        }
         reservation_stations[unit].busy = true;
         reservation_stations[unit].Op = temp.Op;
 
@@ -497,7 +500,10 @@ bool Simulator::issue()
         rob.busy = true;
         rob.name = "ROB" + to_string(ROB_head + 1);
         reservation_stations[unit].dest = rob.name;
-
+        if (temp.Op == FMUL)
+        {
+            cout << endl;
+        }
         if (temp.rs != "")
         {
             reservation_stations[unit].Vj = temp.rs;
@@ -517,7 +523,7 @@ bool Simulator::issue()
             for (int i = ROB.size() - 1; i >= 0; i--)
             {
                 ROB_status rob = ROB[i];
-                if (rob.dest == temp.rs && rob.state != Commit && rob.state != WB)
+                if (rob.dest == temp.rt && rob.state != Commit && rob.state != WB)
                 {
                     reservation_stations[unit].Qk = rob.name;
                     break;
@@ -642,7 +648,10 @@ bool Simulator::execute()
                 }
                 else
                 {
-                    CDB[i.dest] = i.value;
+                    if (CDB.size() != NB)
+                    {
+                        CDB[i.dest] = i.value;
+                    }
                 }
             }
             for (auto &re : reservation_stations)
@@ -759,7 +768,6 @@ double Simulator::getValue(ROB_status rob)
     {
         Vk = CDB[rs.Vk];
     }
-
     if (Vk == __DBL_MIN__ && ins.Op != ADDI && ins.Op != FLD && ins.Op != FSD && ins.Op != BNE)
     {
         if (ins.rt == "$0")
@@ -787,7 +795,7 @@ double Simulator::getValue(ROB_status rob)
         return Vj * Vk;
     case FDIV:
 
-        return Vj * Vk;
+        return Vj / Vk;
     case FSD:
     case FLD:
         return memory_content[Vj + ins.imme];

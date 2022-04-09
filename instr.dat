@@ -2,3 +2,5 @@ addi R1, R0, 24
 addi R2, R0, 124 
 fld F2, 200(R0) 
 loop: fld F0, 0(R1) 
+fmul F0, F0, F2 
+fld F4, 0(R2) 

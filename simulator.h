@@ -99,10 +99,10 @@ private:
     unordered_map<string, Reservation_station_status> reservation_stations;
     unordered_map<int, pair<int, int>> BTB;
     deque<ROB_status> ROB;
-    unordered_map<string, float> CDB;
-    unordered_map<string, float> register_status; // register result status
-    deque<string> free_list;                      // Free list for avaliable physical registers
-    unordered_map<int, int> memory_content;       // store memory values that read from inputfile
+    unordered_map<string, double> CDB;
+    unordered_map<string, double> register_status; // register result status
+    deque<string> free_list;                       // Free list for avaliable physical registers
+    unordered_map<int, double> memory_content;     // store memory values that read from inputfile
     float physical_mem[SIZE_MEM];
     int NF, NW, NB, NR;
     int PC = 0;

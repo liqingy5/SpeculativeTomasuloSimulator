@@ -167,12 +167,17 @@ bool Simulator::read_instructions(const char *inputfile)
                 words.erase(words.begin(), words.begin() + 1);
             }
             op = words[0];
+
             if (op == "fld")
             {
                 opcode = FLD;
                 rd = words[1]; // Destination or base register
                 rs = words[2]; // first source or data source
                 // extract offset
+                if (rs[rs.size() - 1] == '\r')
+                {
+                    rs.erase(rs.size() - 1);
+                }
                 for (size_t i = 0; i < rs.size(); ++i)
                 {
                     if (rs[i] == '(')
@@ -189,6 +194,10 @@ bool Simulator::read_instructions(const char *inputfile)
                 rs = words[1]; // Destination or base register
                 rt = words[2]; // first source or data source
                 // extract offset
+                if (rt[rt.size() - 1] == '\r')
+                {
+                    rt.erase(rt.size() - 1);
+                }
                 for (size_t i = 0; i < rt.size(); ++i)
                 {
                     if (rt[i] == '(')
@@ -201,9 +210,14 @@ bool Simulator::read_instructions(const char *inputfile)
             }
             else if (op == "bne")
             {
+
                 rd = words[1]; // first source
                 rs = words[2]; // second source
                 rt = words[3]; // jump
+                if (rt[rt.size() - 1] == '\r')
+                {
+                    rt.erase(rt.size() - 1);
+                }
                 // if (DEBUG && branch_table.count(rt))
                 // {
                 //     cout << branch_table[rt].rd << endl;
@@ -222,6 +236,10 @@ bool Simulator::read_instructions(const char *inputfile)
                 rd = words[1]; // destination
                 rs = words[2]; // source 1
                 rt = words[3]; // source 2
+                if (rt[rt.size() - 1] == '\r')
+                {
+                    rt.erase(rt.size() - 1);
+                }
                 if (op == "fadd")
                 {
                     opcode = FADD;
@@ -317,66 +335,66 @@ bool Simulator::decode()
         case ADD:
         case FDIV:
         case FSUB:
-            temp = register_rename(rd, true);
-            if (temp == "")
-            {
-                return false;
-            }
-            temp_ins.rd = temp;
-            temp = register_rename(rs, false);
-            if (temp == "")
-            {
-                return false;
-            }
-            temp_ins.rs = temp;
             temp = register_rename(rt, false);
             if (temp == "")
             {
                 return false;
             }
             temp_ins.rt = temp;
+            temp = register_rename(rs, false);
+            if (temp == "")
+            {
+                return false;
+            }
+            temp_ins.rs = temp;
+            temp = register_rename(rd, true);
+            if (temp == "")
+            {
+                return false;
+            }
+            temp_ins.rd = temp;
             break;
         case FLD:
+            temp = register_rename(rs, false);
+            if (temp == "")
+            {
+                return false;
+            }
+            temp_ins.rs = temp;
             temp = register_rename(rd, false);
             if (temp == "")
             {
                 return false;
             }
             temp_ins.rd = temp;
-            temp = register_rename(rs, false);
-            if (temp == "")
-            {
-                return false;
-            }
-            temp_ins.rs = temp;
             break;
         case FSD:
-            temp = register_rename(rs, false);
-            if (temp == "")
-            {
-                return false;
-            }
-            temp_ins.rs = temp;
             temp = register_rename(rt, false);
             if (temp == "")
             {
                 return false;
             }
             temp_ins.rt = temp;
-            break;
-        default:
-            temp = register_rename(rd, true);
-            if (temp == "")
-            {
-                return false;
-            }
-            temp_ins.rd = temp;
             temp = register_rename(rs, false);
             if (temp == "")
             {
                 return false;
             }
             temp_ins.rs = temp;
+            break;
+        default:
+            temp = register_rename(rs, false);
+            if (temp == "")
+            {
+                return false;
+            }
+            temp_ins.rs = temp;
+            temp = register_rename(rd, true);
+            if (temp == "")
+            {
+                return false;
+            }
+            temp_ins.rd = temp;
         }
         fetch_queue.pop_front();
         decode_queue.push_back(temp_ins);
@@ -486,7 +504,7 @@ bool Simulator::issue()
 
         if (unit == "")
         {
-            decode_queue.push_back(temp);
+            decode_queue.push_front(temp);
             return false;
         }
         reservation_stations[unit].busy = true;
@@ -582,8 +600,8 @@ bool Simulator::execute()
             if (i.ins.Op == FSD || i.ins.Op == FLD)
             {
                 mem_busy = false;
-                count_WB--;
             }
+            count_WB--;
         }
         else if (i.cycles == 0 && i.state == Execute)
         {
@@ -650,7 +668,10 @@ bool Simulator::execute()
                 {
                     if (CDB.size() != NB)
                     {
-                        CDB[i.dest] = i.value;
+                        if (i.ins.Op != FSD)
+                        {
+                            CDB[i.dest] = i.value;
+                        }
                     }
                 }
             }
@@ -730,6 +751,7 @@ bool Simulator::execute()
                 if (CDB.count(temp.ins.rs))
                 {
                     value = CDB[temp.ins.rs];
+                    free_list.push_front(temp.ins.rd);
                     CDB.erase(temp.ins.rs);
                 }
                 else if (register_status.count(temp.ins.rs))
@@ -745,7 +767,18 @@ bool Simulator::execute()
             }
             default:
             {
-                register_status[temp.dest] = temp.value;
+                double value = __DBL_MIN__;
+                if (CDB.count(temp.ins.rd))
+                {
+                    value = CDB[temp.ins.rd];
+                    free_list.push_front(temp.ins.rd);
+                    CDB.erase(temp.ins.rd);
+                }
+                else
+                {
+                    value = temp.value;
+                }
+                register_status[temp.dest] = value;
             }
             break;
             }
@@ -764,6 +797,11 @@ double Simulator::getValue(ROB_status rob)
     {
         Vj = CDB[rs.Vj];
     }
+    else
+    {
+        Vj = register_status[rs.Vj];
+    }
+
     if (CDB.count(rs.Vk) > 0)
     {
         Vk = CDB[rs.Vk];
@@ -788,15 +826,14 @@ double Simulator::getValue(ROB_status rob)
     case FADD:
         return Vj + Vk;
     case FSUB:
-
         return Vj - Vk;
     case FMUL:
-
         return Vj * Vk;
     case FDIV:
 
         return Vj / Vk;
     case FSD:
+        return memory_content[Vk + ins.imme];
     case FLD:
         return memory_content[Vj + ins.imme];
     case BNE:
@@ -814,6 +851,10 @@ string Simulator::register_rename(string reg, bool des)
         if (!des)
         {
             string temp = mapping_table[reg];
+            while (mapping_table.count(temp))
+            {
+                temp = mapping_table[temp];
+            }
             reg = temp;
             // cout << reg << endl;
             return reg;
@@ -848,7 +889,7 @@ void Simulator::print_ins_list()
     for (auto i : instruction_list)
     {
         Instruction ins = i;
-        cout << ins_name[ins.Op] << " " << ins.rd << "," << ins.rs << "," << ins.rt << ins.imme << endl;
+        cout << ins_name[ins.Op] << " " << ins.rd << "," << ins.rs << "," << ins.rt << " Imme: " << ins.imme << endl;
         // if (ins.rt == "")
         // {
         //     cout << ins_name[ins.Op] << endl;
@@ -1020,10 +1061,11 @@ void Simulator::display_data()
 {
     print_ins_list();
     print_fetch_list();
-    print_rename_list();
+    // print_rename_list();
     print_freelist();
-    print_reservationStation();
+    // print_reservationStation();
     print_ROB();
     print_CDB();
     print_registerStatus();
+    print_mem_list();
 }

@@ -1,6 +1,6 @@
-addi R1, R0, 24 
-addi R2, R0, 124 
-fld F2, 200(R0) 
-loop: fld F0, 0(R1) 
-fmul F0, F0, F2 
-fld F4, 0(R2) 
+addi R1, R0, 24
+addi R2, R0, 124
+fmul F0, R1, R2
+fadd F0, R1, F0
+fdiv R5, R2, R1  
+fadd R5, F0, R2

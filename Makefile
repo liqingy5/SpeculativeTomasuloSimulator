@@ -22,4 +22,4 @@ simulator.o:simulator.cpp
 	$(CC) $(CFLAGS) simulator.cpp
 
 clean: 
-	rm *.o main simulator
+	rm *.o main

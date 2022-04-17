@@ -38,11 +38,10 @@ void Simulator::set_parameter(int _NF, int _NW, int _NR, int _NB)
 
 void Simulator::sim_start()
 {
-    int i = 0;
+    int cycles = 0;
     while (true)
     {
-        i++;
-        cout << "iteration: " << i << endl;
+        cycles++;
         display_data();
         execute();
         issue();
@@ -51,7 +50,7 @@ void Simulator::sim_start()
         if (ROB.size() == 0 && fetch_queue.size() == 0 && decode_queue.size() == 0)
         {
             display_data();
-
+            cout << "Cycles: " << cycles << endl;
             break;
         }
     }
@@ -751,6 +750,7 @@ bool Simulator::execute()
                 if (CDB.count(temp.ins.rs))
                 {
                     value = CDB[temp.ins.rs];
+                    free_list.push_front(temp.ins.rs);
                     CDB.erase(temp.ins.rs);
                 }
                 else if (register_status.count(temp.ins.rs))
@@ -770,6 +770,7 @@ bool Simulator::execute()
                 if (CDB.count(temp.ins.rd))
                 {
                     value = CDB[temp.ins.rd];
+                    free_list.push_front(temp.ins.rs);
                     CDB.erase(temp.ins.rd);
                 }
                 else

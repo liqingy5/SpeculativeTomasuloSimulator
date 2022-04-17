@@ -751,7 +751,6 @@ bool Simulator::execute()
                 if (CDB.count(temp.ins.rs))
                 {
                     value = CDB[temp.ins.rs];
-                    free_list.push_front(temp.ins.rd);
                     CDB.erase(temp.ins.rs);
                 }
                 else if (register_status.count(temp.ins.rs))
@@ -771,7 +770,6 @@ bool Simulator::execute()
                 if (CDB.count(temp.ins.rd))
                 {
                     value = CDB[temp.ins.rd];
-                    free_list.push_front(temp.ins.rd);
                     CDB.erase(temp.ins.rd);
                 }
                 else
@@ -845,6 +843,8 @@ double Simulator::getValue(ROB_status rob)
 
 string Simulator::register_rename(string reg, bool des)
 {
+    // To do: next dest if overwrite the previous dest, mark the previous dest as free, add to free_free_list
+    // push_back the free_free_list//
     // cout << "Was: " << reg << endl;
     if (mapping_table.count(reg) == 1)
     {

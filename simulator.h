@@ -97,11 +97,12 @@ private:
     unordered_map<string, string> mapping_table; // key is the register before rename, value is after renamed
     unordered_map<string, int> branch_address;   // store the address of branch instruction
     unordered_map<string, Reservation_station_status> reservation_stations;
-    unordered_map<int, pair<int, int>> BTB;
+    unordered_map<int, pair<int, int> > BTB;
     deque<ROB_status> ROB;
     unordered_map<string, double> CDB;
     unordered_map<string, double> register_status; // register result status
     deque<string> free_list;                       // Free list for avaliable physical registers
+    deque<string> free_free_list;                  // Free list for freeing next avaliable physical registers
     unordered_map<int, double> memory_content;     // store memory values that read from inputfile
     float physical_mem[SIZE_MEM];
     int NF, NW, NB, NR;

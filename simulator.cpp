@@ -21,6 +21,9 @@ Simulator::Simulator()
 Simulator::~Simulator()
 {
 }
+/*
+ * Initlize the simulator.
+ */
 void Simulator::initlize()
 {
     init_mem();
@@ -28,6 +31,14 @@ void Simulator::initlize()
     // init_ROB();
     init_register();
 }
+/*
+ * set_parameter
+ * set the parameters of the simulator
+ * @param NF: number of integer functional units
+ * @param NW: number of load functional units
+ * @param NR: number of register file
+ * @param NB: number of branch units
+ */
 void Simulator::set_parameter(int _NF, int _NW, int _NR, int _NB)
 {
     NF = _NF;
@@ -35,7 +46,9 @@ void Simulator::set_parameter(int _NF, int _NW, int _NR, int _NB)
     NR = _NR;
     NB = _NB;
 }
-
+/*
+ * start the simulator
+ */
 void Simulator::sim_start()
 {
     int cycles = 0;
@@ -50,6 +63,7 @@ void Simulator::sim_start()
         issue();
         decode();
         fetch();
+        /// Stop simulation when no instructions in fly and ROB is empty
         if (ROB.size() == 0 && fetch_queue.size() == 0 && decode_queue.size() == 0)
         {
             display_data();
@@ -100,7 +114,11 @@ int Simulator::init_register()
         register_status["P" + to_string(i)] = 0;
     }
 }
-
+/*
+ * read memory
+ * read the memory value from the mem.dat
+ * @param filename: the file name of the memory
+ */
 bool Simulator::read_memory(const char *inputfile)
 {
     filename = inputfile;
@@ -128,7 +146,7 @@ bool Simulator::read_memory(const char *inputfile)
                 cout << "memory location: " << loc << " "
                      << "memory value: " << val << endl;
             }
-
+            // push value to the memory content
             memory_content[loc] = val;
         }
     }
@@ -139,6 +157,11 @@ bool Simulator::read_memory(const char *inputfile)
     }
     return true;
 }
+/*
+ * read instruction
+ * read the instruction from the instr.dat
+ * @param filename: the file name of the instructions
+ */
 bool Simulator::read_instructions(const char *inputfile)
 {
     filename = inputfile;
@@ -173,9 +196,8 @@ bool Simulator::read_instructions(const char *inputfile)
             if (op == "fld")
             {
                 opcode = FLD;
-                rd = words[1]; // Destination or base register
-                rs = words[2]; // first source or data source
-                // extract offset
+                rd = words[1]; // Destination
+                rs = words[2]; // data source
                 if (rs[rs.size() - 1] == '\r')
                 {
                     rs.erase(rs.size() - 1);
@@ -193,9 +215,8 @@ bool Simulator::read_instructions(const char *inputfile)
             else if (op == "fsd")
             {
                 opcode = FSD;
-                rs = words[1]; // Destination or base register
-                rt = words[2]; // first source or data source
-                // extract offset
+                rs = words[1]; // base register
+                rt = words[2]; // memory location
                 if (rt[rt.size() - 1] == '\r')
                 {
                     rt.erase(rt.size() - 1);
@@ -215,7 +236,7 @@ bool Simulator::read_instructions(const char *inputfile)
 
                 rs = words[1]; // first source
                 rt = words[2]; // second source
-                rd = words[3]; // jump
+                rd = words[3]; // jump to
                 if (rt[rt.size() - 1] == '\r')
                 {
                     rt.erase(rt.size() - 1);
@@ -263,6 +284,7 @@ bool Simulator::read_instructions(const char *inputfile)
                     opcode = ADD;
                 }
             }
+            // Initiaze the instruction to instruction struct
             struct Instruction ins;
             ins.address = address;
             ins.Op = opcode;
@@ -270,10 +292,12 @@ bool Simulator::read_instructions(const char *inputfile)
             ins.rs = rs;
             ins.rt = rt;
             ins.imme = imme;
+            // add branch name to the branch table
             if (branch_name.length() > 0)
             {
                 branch_address[branch_name] = address;
             }
+            // save instructions to the instruction_list
             instruction_list.push_back(ins);
             address++;
         }
@@ -286,18 +310,27 @@ bool Simulator::read_instructions(const char *inputfile)
 
     return false;
 }
+/*
+ * Fetch stage
+ */
 bool Simulator::fetch()
 {
+    // return false if the instruction list is emtpy
     if (instruction_list.empty())
         return false;
+    // iteration the instruction list and fetch no more than NF instructions each time.
     for (int i = 0; i < NF; ++i)
     {
+        // Programe counter larger than the instruction list return false
         if (PC >= instruction_list.size())
         {
             return false;
         }
+        // fetch the instruction
         Instruction &temp = instruction_list[PC];
         fetch_queue.push_back(instruction_list[PC]);
+        // if the instruction is a branch instruction, check if the branch is taken
+        // if taken, set the PC to the branch address
         if (temp.Op == BNE && BTB.count(temp.address))
         {
             if (BTB[temp.address].second)
@@ -316,18 +349,24 @@ bool Simulator::fetch()
     }
     return true;
 }
+/*
+ * Decode stage
+ */
 bool Simulator::decode()
 {
+    // return false if the fetch queue is empty
     if (fetch_queue.empty())
         return true;
     while (!fetch_queue.empty())
     {
+        // get the instruction from the head of the fetch queue
         Instruction temp_ins = fetch_queue.front();
         string rd = temp_ins.rd;
         string rs = temp_ins.rs;
         string rt = temp_ins.rt;
         int &imme = temp_ins.imme;
         string temp;
+        // do the register renaming base on the opcode
         switch (temp_ins.Op)
         {
         case FMUL:
@@ -411,8 +450,10 @@ bool Simulator::decode()
             temp_ins.rd = temp;
             break;
         }
+        // Push renamed instruciton to the decode queue
         fetch_queue.pop_front();
         decode_queue.push_back(temp_ins);
+        // initialize the BTB
         if (temp_ins.Op == BNE && BTB.count(temp_ins.address) == 0)
         {
             BTB[temp_ins.address] = {branch_address[temp_ins.rd],
@@ -421,26 +462,31 @@ bool Simulator::decode()
     }
     return true;
 }
-
+/*
+ * Issue stage
+ */
 bool Simulator::issue()
 {
-
+    // issue the instructions by NW times
     for (int w = 0; w < NW; ++w)
     {
 
         Instruction temp;
         string unit = "";
+        // return if decode queue is empty
         if (decode_queue.empty())
             return false;
+        // return if ROB if full
         if (ROB.size() == NR)
         {
 
             ++stalled_cycles;
             return false;
         }
+        // get the instruction from the head of the decode queue
         temp = decode_queue.front();
         decode_queue.pop_front();
-
+        // put instruction into the reservation station
         switch (temp.Op)
         {
         case ADD:
@@ -519,16 +565,18 @@ bool Simulator::issue()
             return false;
             break;
         }
-
+        // if ALU in reservation station is full, stall
         if (unit == "")
         {
             decode_queue.push_front(temp);
             ++stalled_cycles;
             return false;
         }
+
+        // set the reservation station to be busy
         reservation_stations[unit].busy = true;
         reservation_stations[unit].Op = temp.Op;
-
+        // initialize the ROB
         ROB_status rob;
         rob.unit = unit;
         rob.ins = temp;
@@ -537,10 +585,8 @@ bool Simulator::issue()
         rob.busy = true;
         rob.name = "ROB" + to_string(ROB_head + 1);
         reservation_stations[unit].dest = rob.name;
-        if (temp.Op == FMUL)
-        {
-            cout << endl;
-        }
+
+        // fill Qj and Qv with ROB dependcy
         if (temp.rs != "")
         {
             reservation_stations[unit].Vj = temp.rs;
@@ -567,11 +613,12 @@ bool Simulator::issue()
                 }
             }
         }
-
+        // add imme value
         if (temp.Op == ADDI || temp.Op == FLD || temp.Op == FSD)
         {
             reservation_stations[unit].a = temp.imme;
         }
+        // push to the ROB queue
         ROB.push_back(rob);
         ROB_head++;
         if (ROB_head == NR)
@@ -581,6 +628,9 @@ bool Simulator::issue()
     }
     return true;
 }
+/*
+ * Retuen latency for different operation
+ */
 int latency(Instrs op)
 {
     switch (op)
@@ -608,8 +658,10 @@ bool Simulator::execute()
 {
     count_WB = 0;
     mem_busy = false;
+    // read ROB instruction
     for (auto &i : ROB)
     {
+        // if commit, continue and wait for remove
         if (i.state == Commit)
         {
             // if (CDB.size() != NB)
@@ -632,12 +684,14 @@ bool Simulator::execute()
             //     mem_busy = false;
             // }
         }
+        // if wait cycles is 0 and the state is execute
         else if (i.cycles == 0 && i.state == Execute)
         {
             if ((i.ins.Op == FSD || i.ins.Op == FLD) && i.cycles == 0)
             {
                 if (!mem_busy)
                 {
+                    // set memory to busy if load/ store
                     mem_busy = true;
                 }
                 else
@@ -647,6 +701,7 @@ bool Simulator::execute()
             }
             if (count_WB != NB)
             {
+                // count how many instruction in WB in this cycle.
                 i.state = WB;
                 count_WB += 1;
             }
@@ -654,7 +709,7 @@ bool Simulator::execute()
             {
                 continue;
             }
-
+            // if the value of instruction is calculated
             if (i.value != __DBL_MIN__)
             {
 
@@ -662,10 +717,12 @@ bool Simulator::execute()
                 {
 
                     PC = i.ins.address + 1;
+                    // if take the branch, reset the PC
                     if (i.value == 1)
                     {
                         PC = BTB[i.ins.address].first;
                     }
+                    // flush out the instruction after the branch if the branch predict is wrong
                     if (BTB[i.ins.address].second != i.value)
                     {
                         if (i.value == 0)
@@ -674,16 +731,21 @@ bool Simulator::execute()
                         }
                         BTB[i.ins.address].second = i.value;
 
-                        // flush out the ROB
+                        // flush out the fetch and decode
                         fetch_queue.clear();
                         decode_queue.clear();
-
+                        // flush out the ROB.
                         for (int ind = ROB.size() - 1; ind >= 0; ind--)
                         {
                             ROB_status f = ROB[ind];
                             if (f.ins.address != i.ins.address)
                             {
                                 ROB.pop_back();
+                                if (reservation_stations.count(f.unit))
+                                {
+                                    Reservation_station_status r;
+                                    reservation_stations[f.unit] = r;
+                                }
                                 continue;
                             }
                             else
@@ -707,6 +769,8 @@ bool Simulator::execute()
                     //         CDB[i.dest] = i.value;
                     //     }
                     // }
+
+                    // add to CDB
                     if (i.ins.Op != FSD)
                     {
                         CDB[i.dest] = i.value;
@@ -717,6 +781,7 @@ bool Simulator::execute()
                     }
                 }
             }
+            // i.value is ready, set the Vj and Vk of the instructions that use it as operand to that destination
             for (auto &re : reservation_stations)
             {
                 if (re.second.Qj == i.name)
@@ -732,7 +797,7 @@ bool Simulator::execute()
             }
         }
         else if (i.state == Issued)
-        {
+        { // if the operand is ready in reservation station, get the value from CDB or other registers.
             if (reservation_stations[i.unit].Qj == "" && reservation_stations[i.unit].Qk == "")
             {
 
@@ -743,6 +808,7 @@ bool Simulator::execute()
             }
             else
             {
+                // if not ready in reservation station, check the ROB to see if the operand is ready.
                 if (reservation_stations[i.unit].Qj != "")
                 {
                     string rob_name = reservation_stations[i.unit].Qj;
@@ -771,6 +837,7 @@ bool Simulator::execute()
         }
         else
         {
+            // decrement the wait cycles
             if (i.cycles > 0)
             {
                 i.cycles -= 1;
@@ -779,6 +846,7 @@ bool Simulator::execute()
     }
     if (ROB.size() > 0)
     {
+        // if the head of ROB is in Commit, store the value to register or memory
         if (ROB.front().state == Commit)
         {
             ROB_status temp = ROB.front();
@@ -793,13 +861,16 @@ bool Simulator::execute()
                 if (CDB.count(temp.ins.rs))
                 {
                     value = CDB[temp.ins.rs];
+                    // free the renamed address
                     reset_address(temp.ins.rs);
+                    // erase the CDB after commit.
                     CDB.erase(temp.ins.rs);
                 }
                 else if (register_status.count(temp.ins.rs))
                 {
                     value = register_status[temp.ins.rs];
                 }
+                // save to memory
                 memory_content[temp.value] = value;
                 break;
             }
@@ -813,13 +884,16 @@ bool Simulator::execute()
                 if (CDB.count(temp.ins.rd))
                 {
                     value = CDB[temp.ins.rd];
+                    // free the renamed address
                     reset_address(temp.ins.rd);
+                    // erase the CDB after commit.
                     CDB.erase(temp.ins.rd);
                 }
                 else
                 {
                     value = temp.value;
                 }
+                // save to register
                 register_status[temp.dest] = value;
             }
             break;
@@ -831,33 +905,38 @@ bool Simulator::execute()
 
 void Simulator::reset_address(string const &addr)
 {
+    // free_list.push_back(addr);
+    // string temp = "";
+    // if (mapping_table.count(addr))
+    // {
+    //     temp = mapping_table[addr];
+    // }
+    // string key = "";
+    // for (auto &k : mapping_table)
+    // {
+    //     if (k.second == addr)
+    //     {
+    //         key = k.first;
+    //         break;
+    //     }
+    // }
+    // if (temp == "")
+    // {
+    //     // mapping_table.erase(key);
+    // }
+    // else
+    // {
+    //     mapping_table[key] = temp;
+    //     mapping_table.erase(addr);
+    // }
     free_list.push_back(addr);
-    string temp = "";
-    if (mapping_table.count(addr))
-    {
-        temp = mapping_table[addr];
-    }
-    string key = "";
-    for (auto &k : mapping_table)
-    {
-        if (k.second == addr)
-        {
-            key = k.first;
-            break;
-        }
-    }
-    if (temp == "")
-    {
-        // mapping_table.erase(key);
-    }
-    else
-    {
-        mapping_table[key] = temp;
-        mapping_table.erase(addr);
-    }
     return;
 }
-
+/*
+ * @brief: get the value of the operand from CDB or register
+ * @param: the operand
+ * @return: the value of the operand
+ */
 double Simulator::getValue(ROB_status rob)
 {
     Reservation_station_status &rs = reservation_stations[rob.unit];
@@ -913,7 +992,12 @@ double Simulator::getValue(ROB_status rob)
         return 0;
     }
 }
-
+/*
+ * register rename
+ *@param reg register name
+ *@param dest if it's destination register
+ *@return register name
+ */
 string Simulator::register_rename(string reg, bool des)
 {
     // cout << "Was: " << reg << endl;
@@ -925,21 +1009,23 @@ string Simulator::register_rename(string reg, bool des)
         return "";
     if (mapping_table.count(reg) == 1)
     {
+        // reg = mapping_table[reg];
         if (!des)
         {
-            string temp = mapping_table[reg];
-            while (mapping_table.count(temp))
-            {
-                temp = mapping_table[temp];
-            }
-            reg = temp;
-            // cout << reg << endl;
-            return reg;
+            // string temp = mapping_table[reg];
+            // while (mapping_table.count(temp))
+            // {
+            //     temp = mapping_table[temp];
+            // }
+            // reg = temp;
+            // // cout << reg << endl;
+            // return reg;
+            return mapping_table[reg];
         }
-        else
-        {
-            reg = mapping_table[reg];
-        }
+        // else
+        // {
+        //     reg = mapping_table[reg];
+        // }
     }
 
     // else
@@ -958,6 +1044,8 @@ string Simulator::register_rename(string reg, bool des)
     return reg;
 }
 
+/***********************************/
+/*functions below are for debug purpose and stats display*/
 void Simulator::print_ins_list()
 
 {
@@ -1141,9 +1229,9 @@ void Simulator::print_stalled()
 void Simulator::display_data()
 {
     print_ins_list();
-    // print_fetch_list();
-    // print_rename_list();
-    // print_freelist();
+    print_fetch_list();
+    print_rename_list();
+    print_freelist();
     print_reservationStation();
     print_ROB();
     print_CDB();

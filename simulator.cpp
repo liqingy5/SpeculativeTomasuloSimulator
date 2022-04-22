@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <iomanip>
 
-const int DEBUG = 0;
+const int DEBUG = 1;
 const char *delimiter = ", ";
 const char *delim_left_parentheses = "(";
 const char MAX_INS_LENGTH = 50;
@@ -288,7 +288,6 @@ bool Simulator::read_instructions(const char *inputfile)
 }
 bool Simulator::fetch()
 {
-    cycles++;
     if (instruction_list.empty())
         return false;
     for (int i = 0; i < NF; ++i)
@@ -319,7 +318,6 @@ bool Simulator::fetch()
 }
 bool Simulator::decode()
 {
-    cycles++;
     if (fetch_queue.empty())
         return true;
     while (!fetch_queue.empty())
@@ -427,7 +425,6 @@ bool Simulator::decode()
 bool Simulator::issue()
 {
 
-    cycles++;
     for (int w = 0; w < NW; ++w)
     {
 
@@ -436,7 +433,11 @@ bool Simulator::issue()
         if (decode_queue.empty())
             return false;
         if (ROB.size() == NR)
+        {
+
+            ++stalled_cycles;
             return false;
+        }
         temp = decode_queue.front();
         decode_queue.pop_front();
 
@@ -522,6 +523,7 @@ bool Simulator::issue()
         if (unit == "")
         {
             decode_queue.push_front(temp);
+            ++stalled_cycles;
             return false;
         }
         reservation_stations[unit].busy = true;
@@ -1131,15 +1133,21 @@ void Simulator::print_CDB()
     cout << endl;
 }
 
+void Simulator::print_stalled()
+{
+    cout << "stalled cycles: " << stalled_cycles << endl;
+}
+
 void Simulator::display_data()
 {
-    // print_ins_list();
+    print_ins_list();
     // print_fetch_list();
-    print_rename_list();
+    // print_rename_list();
     // print_freelist();
-    // print_reservationStation();
+    print_reservationStation();
     print_ROB();
     print_CDB();
     print_registerStatus();
     print_mem_list();
+    print_stalled();
 }

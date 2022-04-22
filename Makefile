@@ -4,7 +4,7 @@ CFLAGS = -std=c++11 -c -Wall -pedantic -g
 NF=4 #number of fetch instructions pre cycle.
 NW=4 #number of instructions can be issued to reservation stations pre cycle.
 NR=16 #number of entries in the reorder buffer(ROB)
-NB=4  #number of entries in the Common Data Busses(CDB)
+NB=4  #commit width
 INSFILE = "instr.dat"
 MEMFILE = "mem.dat"
 all: clean main run

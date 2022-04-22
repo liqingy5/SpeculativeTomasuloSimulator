@@ -108,7 +108,7 @@ private:
     int NF, NW, NB, NR;
     int PC = 0;
     int address = 0;
-    int cycles = 0;
+    int stalled_cycles = 0;
     int ROB_head = 0; // is ROB head
     bool mem_busy = false;
     int count_WB = 0;
@@ -143,6 +143,7 @@ public:
     void print_ROB();
     void print_registerStatus();
     void print_CDB();
+    void print_stalled();
     void display_data();
 };
 #endif

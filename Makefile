@@ -20,6 +20,7 @@ main.o: main.cpp
 
 simulator.o:simulator.cpp
 	$(CC) $(CFLAGS) simulator.cpp
-
+debug:
+	gdb ./main $(INSFILE) $(MEMFILE) $(NF) $(NW) $(NR) $(NB)
 clean: 
-	rm *.o main
+	rm *.o main simulator

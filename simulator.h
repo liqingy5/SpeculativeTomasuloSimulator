@@ -97,7 +97,7 @@ private:
     unordered_map<string, string> mapping_table; // key is the register before rename, value is after renamed
     unordered_map<string, int> branch_address;   // store the address of branch instruction
     unordered_map<string, Reservation_station_status> reservation_stations;
-    unordered_map<int, pair<int, int> > BTB;
+    unordered_map<int, pair<int, int>> BTB;
     deque<ROB_status> ROB;
     unordered_map<string, double> CDB;
     unordered_map<string, double> register_status; // register result status
@@ -132,7 +132,7 @@ public:
     bool execute();
     double getValue(ROB_status rob);
     string register_rename(string reg, bool des); // perform register rename at decode stage and add renamed instruction into the decode deque.
-
+    void reset_address(string const &addr);       // push back address to freelist and reset mapping table
     /*Debug purpose*/
     void print_ins_list();
     void print_fetch_list();

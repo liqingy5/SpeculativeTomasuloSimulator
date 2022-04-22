@@ -210,9 +210,9 @@ bool Simulator::read_instructions(const char *inputfile)
             else if (op == "bne")
             {
 
-                rd = words[1]; // first source
-                rs = words[2]; // second source
-                rt = words[3]; // jump
+                rs = words[1]; // first source
+                rt = words[2]; // second source
+                rd = words[3]; // jump
                 if (rt[rt.size() - 1] == '\r')
                 {
                     rt.erase(rt.size() - 1);
@@ -360,7 +360,7 @@ bool Simulator::decode()
                 return false;
             }
             temp_ins.rs = temp;
-            temp = register_rename(rd, false);
+            temp = register_rename(rd, true);
             if (temp == "")
             {
                 return false;
@@ -381,6 +381,20 @@ bool Simulator::decode()
             }
             temp_ins.rs = temp;
             break;
+        case BNE:
+            temp = register_rename(rs, false);
+            if (temp == "")
+            {
+                return false;
+            }
+            temp_ins.rs = temp;
+            temp = register_rename(rt, false);
+            if (temp == "")
+            {
+                return false;
+            }
+            temp_ins.rt = temp;
+            break;
         default:
             temp = register_rename(rs, false);
             if (temp == "")
@@ -394,12 +408,13 @@ bool Simulator::decode()
                 return false;
             }
             temp_ins.rd = temp;
+            break;
         }
         fetch_queue.pop_front();
         decode_queue.push_back(temp_ins);
         if (temp_ins.Op == BNE && BTB.count(temp_ins.address) == 0)
         {
-            BTB[temp_ins.address] = {branch_address[temp_ins.rt],
+            BTB[temp_ins.address] = {branch_address[temp_ins.rd],
                                      0};
         }
     }
@@ -631,16 +646,20 @@ bool Simulator::execute()
                 if (i.ins.Op == BNE)
                 {
 
+                    PC = i.ins.address + 1;
+                    if (i.value == 1)
+                    {
+                        PC = BTB[i.ins.address].first;
+                    }
                     if (BTB[i.ins.address].second != i.value)
                     {
+                        if (i.value == 0)
+                        {
+                            cout << endl;
+                        }
                         BTB[i.ins.address].second = i.value;
 
                         // flush out the ROB
-                        PC = i.ins.address + 1;
-                        if (i.value == 1)
-                        {
-                            PC = BTB[i.ins.address].first;
-                        }
                         fetch_queue.clear();
                         decode_queue.clear();
 
@@ -659,6 +678,7 @@ bool Simulator::execute()
                                 {
                                     ROB_head = 0;
                                 }
+                                return false;
                             }
                         }
                     }
@@ -751,6 +771,7 @@ bool Simulator::execute()
                 {
                     value = CDB[temp.ins.rs];
                     free_list.push_front(temp.ins.rs);
+                    reset_address(temp.ins.rs);
                     CDB.erase(temp.ins.rs);
                 }
                 else if (register_status.count(temp.ins.rs))
@@ -770,7 +791,7 @@ bool Simulator::execute()
                 if (CDB.count(temp.ins.rd))
                 {
                     value = CDB[temp.ins.rd];
-                    free_list.push_front(temp.ins.rs);
+                    reset_address(temp.ins.rd);
                     CDB.erase(temp.ins.rd);
                 }
                 else
@@ -784,6 +805,35 @@ bool Simulator::execute()
         }
     }
     return true;
+}
+
+void Simulator::reset_address(string const &addr)
+{
+    free_list.push_back(addr);
+    string temp = "";
+    if (mapping_table.count(addr))
+    {
+        temp = mapping_table[addr];
+    }
+    string key = "";
+    for (auto &k : mapping_table)
+    {
+        if (k.second == addr)
+        {
+            key = k.first;
+            break;
+        }
+    }
+    if (temp == "")
+    {
+        mapping_table.erase(key);
+    }
+    else
+    {
+        mapping_table[key] = temp;
+        mapping_table.erase(addr);
+    }
+    return;
 }
 
 double Simulator::getValue(ROB_status rob)
@@ -805,7 +855,7 @@ double Simulator::getValue(ROB_status rob)
     {
         Vk = CDB[rs.Vk];
     }
-    if (Vk == __DBL_MIN__ && ins.Op != ADDI && ins.Op != FLD && ins.Op != FSD && ins.Op != BNE)
+    if (Vk == __DBL_MIN__ && ins.Op != ADDI && ins.Op != FLD && ins.Op != FSD)
     {
         if (ins.rt == "$0")
         {
@@ -844,9 +894,13 @@ double Simulator::getValue(ROB_status rob)
 
 string Simulator::register_rename(string reg, bool des)
 {
-    // To do: next dest if overwrite the previous dest, mark the previous dest as free, add to free_free_list
-    // push_back the free_free_list//
     // cout << "Was: " << reg << endl;
+    if (reg == "$0")
+    {
+        return "$0";
+    }
+    if (free_list.empty())
+        return "";
     if (mapping_table.count(reg) == 1)
     {
         if (!des)
@@ -865,12 +919,7 @@ string Simulator::register_rename(string reg, bool des)
             reg = mapping_table[reg];
         }
     }
-    if (free_list.empty())
-        return "";
-    if (reg == "$0")
-    {
-        return "$0";
-    }
+
     else
     {
         string free_register = free_list.front();
@@ -1060,13 +1109,13 @@ void Simulator::print_CDB()
 
 void Simulator::display_data()
 {
-    print_ins_list();
-    print_fetch_list();
-    // print_rename_list();
-    print_freelist();
+    // print_ins_list();
+    // print_fetch_list();
+    print_rename_list();
+    // print_freelist();
     // print_reservationStation();
     print_ROB();
     print_CDB();
-    print_registerStatus();
-    print_mem_list();
+    // print_registerStatus();
+    // print_mem_list();
 }

@@ -23,4 +23,4 @@ simulator.o:simulator.cpp
 debug:
 	gdb ./main $(INSFILE) $(MEMFILE) $(NF) $(NW) $(NR) $(NB)
 clean: 
-	rm *.o main simulator
+	rm *.o main

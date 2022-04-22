@@ -42,7 +42,10 @@ void Simulator::sim_start()
     while (true)
     {
         cycles++;
-        display_data();
+        if (DEBUG)
+        {
+            display_data();
+        }
         execute();
         issue();
         decode();
@@ -601,21 +604,31 @@ int latency(Instrs op)
 }
 bool Simulator::execute()
 {
-
+    count_WB = 0;
+    mem_busy = false;
     for (auto &i : ROB)
     {
         if (i.state == Commit)
         {
+            if (CDB.size() != NB)
+            {
+                if (i.ins.Op != FSD && i.ins.Op != BNE)
+                {
+                    if (CDB.count(i.dest) == 0)
+                    {
+                        CDB[i.dest] = i.value;
+                    }
+                }
+            }
             continue;
         }
         if (i.state == WB)
         {
             i.state = Commit;
-            if (i.ins.Op == FSD || i.ins.Op == FLD)
-            {
-                mem_busy = false;
-            }
-            count_WB--;
+            // if (i.ins.Op == FSD || i.ins.Op == FLD)
+            // {
+            //     mem_busy = false;
+            // }
         }
         else if (i.cycles == 0 && i.state == Execute)
         {
@@ -692,6 +705,10 @@ bool Simulator::execute()
                             CDB[i.dest] = i.value;
                         }
                     }
+                    else
+                    {
+                        return false;
+                    }
                 }
             }
             for (auto &re : reservation_stations)
@@ -725,7 +742,7 @@ bool Simulator::execute()
                     string rob_name = reservation_stations[i.unit].Qj;
                     for (auto r : ROB)
                     {
-                        if (rob_name == r.name && r.state == WB)
+                        if (rob_name == r.name && (r.state == WB || r.state == Commit))
                         {
                             reservation_stations[i.unit].Qj = "";
                             break;
@@ -737,7 +754,7 @@ bool Simulator::execute()
                     string rob_name = reservation_stations[i.unit].Qk;
                     for (auto r : ROB)
                     {
-                        if (rob_name == r.name && r.state == WB)
+                        if (rob_name == r.name && (r.state == WB || r.state == Commit))
                         {
                             reservation_stations[i.unit].Qk = "";
                             break;
@@ -770,7 +787,6 @@ bool Simulator::execute()
                 if (CDB.count(temp.ins.rs))
                 {
                     value = CDB[temp.ins.rs];
-                    free_list.push_front(temp.ins.rs);
                     reset_address(temp.ins.rs);
                     CDB.erase(temp.ins.rs);
                 }
@@ -826,7 +842,7 @@ void Simulator::reset_address(string const &addr)
     }
     if (temp == "")
     {
-        mapping_table.erase(key);
+        // mapping_table.erase(key);
     }
     else
     {
@@ -855,7 +871,7 @@ double Simulator::getValue(ROB_status rob)
     {
         Vk = CDB[rs.Vk];
     }
-    if (Vk == __DBL_MIN__ && ins.Op != ADDI && ins.Op != FLD && ins.Op != FSD)
+    if (Vk == __DBL_MIN__ && ins.Op != ADDI && ins.Op != FLD)
     {
         if (ins.rt == "$0")
         {
@@ -882,7 +898,7 @@ double Simulator::getValue(ROB_status rob)
 
         return Vj / Vk;
     case FSD:
-        return memory_content[Vk + ins.imme];
+        return Vk + ins.imme;
     case FLD:
         return memory_content[Vj + ins.imme];
     case BNE:
@@ -920,13 +936,17 @@ string Simulator::register_rename(string reg, bool des)
         }
     }
 
-    else
-    {
-        string free_register = free_list.front();
-        free_list.pop_front();
-        mapping_table[reg] = free_register;
-        reg = free_register;
-    }
+    // else
+    // {
+    //     string free_register = free_list.front();
+    //     free_list.pop_front();
+    //     mapping_table[reg] = free_register;
+    //     reg = free_register;
+    // }
+    string free_register = free_list.front();
+    free_list.pop_front();
+    mapping_table[reg] = free_register;
+    reg = free_register;
     // cout << reg << endl;
 
     return reg;
@@ -1116,6 +1136,6 @@ void Simulator::display_data()
     // print_reservationStation();
     print_ROB();
     print_CDB();
-    // print_registerStatus();
-    // print_mem_list();
+    print_registerStatus();
+    print_mem_list();
 }

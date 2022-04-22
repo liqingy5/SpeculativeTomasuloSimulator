@@ -2,9 +2,13 @@
 
 Term project for computer architecture, implement a simulator program for speculative tomasulo
 
-## Memmory and Instruction content
+### Memmory and Instruction content
 
 I sepearate benchmark to two files that contain instructions and memory contents seperately. Take a look at instr.dat and mem.dat you will know how to make adjustment.
+
+### Environment
+
+The project is developed using Windows Subsystem for Linux (WSL)
 
 ### Benchmark in project description (prog.dat)
 

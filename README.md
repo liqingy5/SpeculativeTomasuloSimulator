@@ -8,7 +8,7 @@ I sepearate benchmark to two files that contain instructions and memory contents
 
 ### Environment
 
-The project is developed using Windows Subsystem for Linux (WSL)
+The project is developed on Windows Subsystem for Linux (WSL)
 
 ### Benchmark in project description (prog.dat)
 

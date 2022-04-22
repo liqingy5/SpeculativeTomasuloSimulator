@@ -610,16 +610,16 @@ bool Simulator::execute()
     {
         if (i.state == Commit)
         {
-            if (CDB.size() != NB)
-            {
-                if (i.ins.Op != FSD && i.ins.Op != BNE)
-                {
-                    if (CDB.count(i.dest) == 0)
-                    {
-                        CDB[i.dest] = i.value;
-                    }
-                }
-            }
+            // if (CDB.size() != NB)
+            // {
+            //     if (i.ins.Op != FSD && i.ins.Op != BNE)
+            //     {
+            //         if (CDB.count(i.dest) == 0)
+            //         {
+            //             CDB[i.dest] = i.value;
+            //         }
+            //     }
+            // }
             continue;
         }
         if (i.state == WB)
@@ -698,12 +698,16 @@ bool Simulator::execute()
                 }
                 else
                 {
-                    if (CDB.size() != NB)
+                    // if (CDB.size() != NB)
+                    // {
+                    //     if (i.ins.Op != FSD)
+                    //     {
+                    //         CDB[i.dest] = i.value;
+                    //     }
+                    // }
+                    if (i.ins.Op != FSD)
                     {
-                        if (i.ins.Op != FSD)
-                        {
-                            CDB[i.dest] = i.value;
-                        }
+                        CDB[i.dest] = i.value;
                     }
                     else
                     {

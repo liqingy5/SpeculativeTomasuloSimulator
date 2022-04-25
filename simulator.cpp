@@ -1202,9 +1202,10 @@ void Simulator::print_registerStatus()
     cout << setw(30) << "Register" << endl;
     cout << setw(8) << "reg" << setw(8)
          << "value" << endl;
-    for (auto reg : register_status)
+    for (auto m : mapping_table)
     {
-        cout << reg.first << "," << setw(8) << reg.second << endl;
+        cout << m.first << "(" << m.second << ") "
+             << setw(8) << register_status[m.second] << endl;
     }
     cout << endl;
 }

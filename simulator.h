@@ -1,7 +1,6 @@
 #include <deque>
 #include <string>
 #include <vector>
-#include <deque>
 #include <unordered_map>
 
 using namespace std;
@@ -97,14 +96,15 @@ private:
     unordered_map<string, string> mapping_table; // key is the register before rename, value is after renamed
     unordered_map<string, int> branch_address;   // store the address of branch instruction
     unordered_map<string, Reservation_station_status> reservation_stations;
-    unordered_map<int, pair<int, int>> BTB;        // store the branch target address and its target address
-    deque<ROB_status> ROB;                         // store the ROB status
-    unordered_map<string, double> CDB;             // store the register value to CDB for forward or commit.
-    unordered_map<string, double> register_status; // register result status
-    deque<string> free_list;                       // Free list for avaliable physical registers
-    deque<string> free_free_list;                  // Free list for freeing next avaliable physical registers
-    unordered_map<int, double> memory_content;     // store memory values that read from inputfile
-    float physical_mem[SIZE_MEM];                  
+    unordered_map<int, pair<int, int>> BTB;               // store the branch target address and its target address
+    deque<ROB_status> ROB;                                // store the ROB status
+    unordered_map<string, double> CDB;                    // store the register value to CDB for forward or commit.
+    unordered_map<string, double> register_status;        // register result status
+    deque<string> free_list;                              // Free list for avaliable physical registers
+    unordered_map<int, double> memory_content;            // store memory values that read from inputfile
+    deque<unordered_map<string, string>> mapping_history; // restore the mapping table when branch not taken
+    deque<deque<string>> free_list_history;               // restore the free list when branch not taken
+    float physical_mem[SIZE_MEM];
     int NF, NW, NB, NR;
     int PC = 0;
     int address = 0;
@@ -131,6 +131,8 @@ public:
     bool issue();                                       // issue instructions from decode queue to reservation stations
     bool execute();
     double getValue(ROB_status rob);
+    void branchHistory();                               // store the mapping table and free list when branch
+    void historyReset();                                //restore the mapping table and free list when branch not taken
     string register_rename(string reg, bool des); // perform register rename at decode stage and add renamed instruction into the decode deque.
     void reset_address(string const &addr);       // push back address to freelist
     /*Debug purpose*/

@@ -30,6 +30,9 @@ void Simulator::initlize()
     init_reservationStation();
     // init_ROB();
     init_register();
+    mapping_history = deque<unordered_map<string, string>>();
+    free_list_history = deque<deque<string>>();
+    cout << endl;
 }
 /*
  * set_parameter
@@ -454,10 +457,15 @@ bool Simulator::decode()
         fetch_queue.pop_front();
         decode_queue.push_back(temp_ins);
         // initialize the BTB
-        if (temp_ins.Op == BNE && BTB.count(temp_ins.address) == 0)
+        if (temp_ins.Op == BNE)
         {
-            BTB[temp_ins.address] = {branch_address[temp_ins.rd],
-                                     0};
+            branchHistory();
+
+            if (BTB.count(temp_ins.address) == 0)
+            {
+                BTB[temp_ins.address] = {branch_address[temp_ins.rd],
+                                         0};
+            }
         }
     }
     return true;
@@ -721,6 +729,14 @@ bool Simulator::execute()
                     if (i.value == 1)
                     {
                         PC = BTB[i.ins.address].first;
+                        if (!mapping_history.empty())
+                        {
+                            mapping_history.pop_front();
+                        }
+                        if (!free_list_history.empty())
+                        {
+                            free_list_history.pop_front();
+                        }
                     }
                     // flush out the instruction after the branch if the branch predict is wrong
                     if (BTB[i.ins.address].second != i.value)
@@ -734,6 +750,8 @@ bool Simulator::execute()
                         // flush out the fetch and decode
                         fetch_queue.clear();
                         decode_queue.clear();
+                        historyReset();
+
                         // flush out the ROB.
                         for (int ind = ROB.size() - 1; ind >= 0; ind--)
                         {
@@ -901,6 +919,30 @@ bool Simulator::execute()
         }
     }
     return true;
+}
+/*
+ * @brief: store mapping_table and free list when branch
+ */
+void Simulator::branchHistory()
+{
+    mapping_history.push_back(mapping_table);
+    free_list_history.push_back(free_list);
+}
+/*
+ * @brief: restore mapping_table and free list when branch not taken
+ */
+void Simulator::historyReset()
+{
+    if (!free_list_history.empty())
+    {
+        free_list = free_list_history.front();
+        free_list_history.clear();
+    }
+    if (!mapping_history.empty())
+    {
+        mapping_table = mapping_history.front();
+        mapping_history.clear();
+    }
 }
 
 void Simulator::reset_address(string const &addr)
@@ -1207,6 +1249,10 @@ void Simulator::print_registerStatus()
         cout << m.first << "(" << m.second << ") "
              << setw(8) << register_status[m.second] << endl;
     }
+    // for (auto reg : register_status)
+    // {
+    //     cout << reg.first << "," << setw(8) << reg.second << endl;
+    // }
     cout << endl;
 }
 

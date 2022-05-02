@@ -98,3 +98,6 @@ NW=4 #number of instructions can be issued to reservation stations pre cycle.
 NR=16 #number of entries in the reorder buffer(ROB)
 NB=4  #commit width
 ```
+
+### Known issue
+Can not pass the testcase with nested loop, probabily due to the BTB or physical register allocation.
